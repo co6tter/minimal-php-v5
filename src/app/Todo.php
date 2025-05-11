@@ -19,10 +19,14 @@ class Todo
             $action = filter_input(INPUT_GET, 'action');
             switch ($action) {
                 case 'add':
-                    $this->add();
+                    $id = $this->add();
+                    header('Content-Type: application/json');
+                    echo json_encode(['id' => $id]);
                     break;
                 case 'toggle':
-                    $this->toggle();
+                    $isDone = $this->toggle();
+                    header('Content-Type: application/json');
+                    echo json_encode(['is_done' => $isDone]);
                     break;
                 case 'delete':
                     $this->delete();
@@ -38,30 +42,43 @@ class Todo
         }
     }
 
-    private function add(): void
+    private function add(): int
     {
         $title = trim(filter_input(INPUT_POST, 'title'));
         if ($title === '') {
-            return;
+            return -1;
         }
 
         $sql = 'INSERT INTO todos (title) VALUES (:title)';
         $stmt = $this->pdo->prepare($sql);
         $stmt->bindValue(':title', $title, \PDO::PARAM_STR);
         $stmt->execute();
+        return (int) $this->pdo->lastInsertId();
     }
 
-    private function toggle(): void
+    private function toggle(): bool
     {
         $id = filter_input(INPUT_POST, 'id');
         if (empty($id)) {
-            return;
+            return false;
+        }
+
+        $sql = 'SELECT * FROM todos WHERE id = :id';
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->bindValue(':id', $id, \PDO::PARAM_INT);
+        $stmt->execute();
+        $todo = $stmt->fetch();
+        if (empty($todo)) {
+            header('HTTP', true, 404);
+            exit;
         }
 
         $sql = 'UPDATE todos SET is_done = NOT is_done WHERE id = :id';
         $stmt = $this->pdo->prepare($sql);
         $stmt->bindValue(':id', $id, \PDO::PARAM_INT);
         $stmt->execute();
+
+        return (bool) !$todo->is_done;
     }
 
     private function delete(): void
